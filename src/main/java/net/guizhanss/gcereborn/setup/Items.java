@@ -77,7 +77,7 @@ public final class Items {
             RecipeType.ENHANCED_CRAFTING_TABLE,
             new ItemStack[] {
                 new ItemStack(Material.BLACKSTONE), SlimefunItems.SMALL_CAPACITOR, new ItemStack(Material.BLACKSTONE),
-                new ItemStack(Material.CHAIN), null, new ItemStack(Material.CHAIN),
+                new ItemStack(Material.IRON_CHAIN), null, new ItemStack(Material.IRON_CHAIN),
                 new ItemStack(Material.STONE), SlimefunItems.ELECTRIC_MOTOR, new ItemStack(Material.STONE)
             }
         ).setCapacity(250).setEnergyConsumption(5).setProcessingSpeed(1).register(plugin);

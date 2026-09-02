@@ -1,6 +1,7 @@
 package net.guizhanss.gcereborn.items.chicken;
 
 import java.util.Optional;
+import java.util.logging.Level;
 
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
@@ -28,6 +29,7 @@ import io.github.thebusybiscuit.slimefun4.libraries.dough.items.ItemUtils;
 import net.guizhanss.gcereborn.GeneticChickengineering;
 import net.guizhanss.gcereborn.core.adapters.AnimalsAdapter;
 import net.guizhanss.gcereborn.core.genetics.DNA;
+import net.guizhanss.gcereborn.utils.ChickenUtils;
 import net.guizhanss.gcereborn.utils.Keys;
 
 public class PocketChicken extends SimpleSlimefunItem<ItemUseHandler> implements NotPlaceable, DistinctiveItem {
@@ -49,35 +51,55 @@ public class PocketChicken extends SimpleSlimefunItem<ItemUseHandler> implements
                 return;
             }
 
-            Block b = block.get();
-            Location location = b.getRelative(e.getClickedFace()).getLocation();
-            Chicken entity = b.getWorld().spawn(location.toCenterLocation(), Chicken.class);
+            ItemStack pocketChicken = e.getItem();
+            ItemMeta meta = pocketChicken.getItemMeta();
 
-            ItemMeta meta = e.getItem().getItemMeta();
             JsonObject json = PersistentDataAPI.get(meta, Keys.POCKET_CHICKEN_ADAPTER, ADAPTER);
-            ADAPTER.apply(entity, json);
+            if (json == null) {
+                // Old/guide-created Pocket Chickens may only contain DNA. Restore them as a safe adult chicken.
+                json = ChickenUtils.getChickenJson(false);
+            }
+
             int[] dnaState = PersistentDataAPI.getIntArray(meta, Keys.POCKET_CHICKEN_DNA);
-            DNA dna;
-            if (dnaState != null) {
-                dna = new DNA(dnaState);
-            } else {
-                dna = new DNA();
-            }
+            DNA dna = dnaState != null ? new DNA(dnaState) : new DNA();
 
-            String dss = dna.getStateString();
-            PersistentDataAPI.setString(entity, Keys.CHICKEN_DNA, dss);
+            Block b = block.get();
+            Location location = b.getRelative(e.getClickedFace()).getLocation().toCenterLocation();
+            Chicken entity = null;
 
-            if (e.getPlayer().getGameMode() != GameMode.CREATIVE) {
-                ItemUtils.consumeItem(e.getItem(), false);
-            }
+            try {
+                // Treat release like a transaction: the item is only consumed after the entity is fully restored.
+                entity = b.getWorld().spawn(location, Chicken.class);
+                ADAPTER.apply(entity, json);
 
-            if (GeneticChickengineering.getConfigService().isDisplayResources() && dna.isKnown()) {
-                String name = ChatColor.WHITE + "(" + ChickenTypes.getDisplayName(dna.getTyping()) + ")";
-                if (json != null && !json.get("_customName").isJsonNull()) {
-                    name = json.get("_customName").getAsString() + " " + name;
+                PersistentDataAPI.setString(entity, Keys.CHICKEN_DNA, dna.getStateString());
+
+                if (GeneticChickengineering.getConfigService().isDisplayResources() && dna.isKnown()) {
+                    String name = ChatColor.WHITE + "(" + ChickenTypes.getDisplayName(dna.getTyping()) + ")";
+                    if (!json.get("_customName").isJsonNull()) {
+                        name = json.get("_customName").getAsString() + " " + name;
+                    }
+                    entity.setCustomName(name);
+                    entity.setCustomNameVisible(true);
                 }
-                entity.setCustomName(name);
-                entity.setCustomNameVisible(true);
+
+                if (e.getPlayer().getGameMode() != GameMode.CREATIVE) {
+                    ItemUtils.consumeItem(pocketChicken, false);
+                }
+            } catch (RuntimeException | LinkageError ex) {
+                // Critical anti-duplication rollback: never leave a spawned chicken behind when restoration fails.
+                if (entity != null && entity.isValid()) {
+                    entity.remove();
+                }
+
+                GeneticChickengineering.getInstance().getLogger().log(
+                    Level.SEVERE,
+                    "Failed to release a Pocket Chicken. Spawn was rolled back and the item was not consumed.",
+                    ex
+                );
+                e.getPlayer().sendMessage(
+                    ChatColor.RED + "Could not release this Pocket Chicken safely. The item was not consumed."
+                );
             }
         };
     }
