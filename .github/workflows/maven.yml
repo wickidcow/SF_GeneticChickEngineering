@@ -1,24 +1,55 @@
-name: Java CI
+name: Build Genetic ChickEngineering
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - master
+      - legacy-1.21.11-26.2
+    paths-ignore:
+      - '**.md'
+      - 'images/**'
   pull_request:
     branches:
       - master
+    paths-ignore:
+      - '**.md'
+      - 'images/**'
+
+permissions:
+  contents: read
 
 jobs:
-  build:
-    if: startsWith(github.event.head_commit.message, '[CI skip]') == false
+  compatibility-build:
+    name: ${{ matrix.target.name }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - name: Paper 1.21.11 API floor
+            paper: 1.21.11-R0.1-SNAPSHOT
+          - name: Paper 26.2 current line
+            paper: '[26.2.build.1,26.3)'
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up JDK 21
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 25
         uses: actions/setup-java@v4
         with:
-          java-version: 21
           distribution: temurin
+          java-version: '25'
           cache: maven
-      - name: Build with Maven
-        run: mvn package --file pom.xml
+
+      - name: Build compatibility target
+        run: mvn -B -ntp -Dpaper.version='${{ matrix.target.paper }}' clean package
+
+      - name: Upload current-line JAR
+        if: matrix.target.name == 'Paper 26.2 current line'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SF_GeneticChickEngineering
+          path: target/SF_GeneticChickEngineering*.jar
+          if-no-files-found: error
