@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - master
-      - legacy-1.21.11-26.2
     paths-ignore:
       - '**.md'
       - 'images/**'
@@ -17,7 +16,7 @@ on:
       - 'images/**'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   compatibility-build:
@@ -46,10 +45,47 @@ jobs:
       - name: Build compatibility target
         run: mvn -B -ntp -Dpaper.version='${{ matrix.target.paper }}' clean package
 
-      - name: Upload current-line JAR
-        if: matrix.target.name == 'Paper 26.2 current line'
-        uses: actions/upload-artifact@v4
+  publish-development-jar:
+    name: Publish raw development JAR
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: compatibility-build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
         with:
-          name: SF_GeneticChickEngineering
-          path: target/SF_GeneticChickEngineering*.jar
-          if-no-files-found: error
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Build development JAR
+        run: mvn -B -ntp -Drevision=dev -Dpaper.version='[26.2.build.1,26.3)' clean package
+
+      - name: Prepare raw JAR
+        shell: bash
+        run: |
+          cp target/SF_GeneticChickEngineeringdev.jar SF_GeneticChickEngineering-dev.jar
+          test -f SF_GeneticChickEngineering-dev.jar
+
+      - name: Publish rolling development release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view development >/dev/null 2>&1; then
+            gh release upload development SF_GeneticChickEngineering-dev.jar --clobber
+            gh release edit development \
+              --title 'SF Genetic ChickEngineering Development Build' \
+              --notes "Latest successful development build from master: ${GITHUB_SHA}"
+          else
+            gh release create development \
+              SF_GeneticChickEngineering-dev.jar \
+              --target "$GITHUB_SHA" \
+              --title 'SF Genetic ChickEngineering Development Build' \
+              --notes "Latest successful development build from master: ${GITHUB_SHA}" \
+              --prerelease
+          fi
