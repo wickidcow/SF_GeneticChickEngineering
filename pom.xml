@@ -13,22 +13,13 @@
     <url>https://github.com/wickidcow/SF_GeneticChickEngineering</url>
 
     <properties>
-        <!-- CI-friendly release version. Release workflow overrides this with -Drevision=x.y.z. -->
         <revision>1.0.0-SNAPSHOT</revision>
-
-        <!-- Build on Java 25 because Paper 26.2 publishes Java 25 API classes. -->
         <maven.compiler.release>21</maven.compiler.release>
         <maven.compiler.parameters>true</maven.compiler.parameters>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-
-        <!--
-          Default to the latest Paper 26.2 build while preventing an automatic jump to 26.3.
-          CI overrides this property to compile against the 1.21.11 compatibility floor too.
-        -->
+        <lombok.version>1.18.44</lombok.version>
         <paper.version>[26.2.build.1,26.3)</paper.version>
-
-        <!-- Compile against the conservative public Slimefun API floor; runtime is provided by the server. -->
         <slimefun.groupId>com.github.Slimefun</slimefun.groupId>
         <slimefun.artifactId>Slimefun4</slimefun.artifactId>
         <slimefun.version>RC-37</slimefun.version>
@@ -92,6 +83,14 @@
                 <configuration>
                     <release>${maven.compiler.release}</release>
                     <encoding>${project.build.sourceEncoding}</encoding>
+                    <!-- JDK 23+ disables implicit annotation processing. Keep Lombok explicit. -->
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
 
@@ -194,7 +193,7 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.44</version>
+            <version>${lombok.version}</version>
             <scope>provided</scope>
         </dependency>
 
