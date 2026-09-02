@@ -1,0 +1,46 @@
+name: Release Genetic ChickEngineering
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build release JAR
+        run: mvn -B -ntp -Drevision='${{ steps.version.outputs.value }}' clean package
+
+      - name: Verify release artifact
+        shell: bash
+        run: test -f 'target/SF_GeneticChickEngineering${{ steps.version.outputs.value }}.jar'
+
+      - name: Create GitHub release and upload raw JAR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          'target/SF_GeneticChickEngineering${{ steps.version.outputs.value }}.jar'
+          --title 'SF Genetic ChickEngineering ${{ steps.version.outputs.value }}'
+          --generate-notes
