@@ -89,3 +89,10 @@ jobs:
               --notes "Latest successful development build from master: ${GITHUB_SHA}" \
               --prerelease
           fi
+
+      - name: Add raw JAR download link
+        shell: bash
+        run: |
+          echo '## Raw development JAR' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '[Download SF_GeneticChickEngineering-dev.jar](https://github.com/wickidcow/SF_GeneticChickEngineering/releases/download/development/SF_GeneticChickEngineering-dev.jar)' >> "$GITHUB_STEP_SUMMARY"
