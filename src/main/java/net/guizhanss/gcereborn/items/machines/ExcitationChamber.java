@@ -26,8 +26,8 @@ import me.mrCookieSlime.Slimefun.api.inventory.BlockMenuPreset;
 
 import net.guizhanss.gcereborn.GeneticChickengineering;
 import net.guizhanss.gcereborn.items.GCEItems;
-import net.guizhanss.gcereborn.utils.GuiItems;
 import net.guizhanss.gcereborn.utils.ChickenUtils;
+import net.guizhanss.gcereborn.utils.GuiItems;
 
 public class ExcitationChamber extends AbstractMachine {
 
@@ -105,8 +105,6 @@ public class ExcitationChamber extends AbstractMachine {
                 continue;
             }
 
-            // Set the progress bar to always be the resource, since players
-            // can abort the recipe if they know the egg is coming
             ItemStack resourceIcon = ChickenUtils.getResource(chicken);
 
             ItemStack chickResource;
@@ -116,20 +114,11 @@ public class ExcitationChamber extends AbstractMachine {
                 chickResource = resourceIcon.clone();
             }
 
-            /* Speed calculation
-             * All recipes have a base speed of 14 (by default)
-             * All recipes add 1 second/DNA tier
-             * All recipes subtract 2 seconds/DNA strength (dominant pairs)
-             *         | normal    | boosted
-             *  Tier 0 | 2-14 sec  | 1-7 sec
-             *  Tier 1 | 5-15 sec  | 2-7 sec
-             *  Tier 2 | 8-16 sec  | 4-8 sec
-             *  Tier 3 | 11-17 sec | 5-8 sec
-             *  Tier 4 | 14-18 sec | 7-9 sec
-             *  Tier 5 | 17-19 sec | 8-9 sec
-             *  Tier 6 | 20 sec    | 10 sec
-             */
-            int speed = (config.getResourceBaseTime() + ChickenUtils.getResourceTier(chicken) - 2 * ChickenUtils.getDNAStrength(chicken)) / getSpeed();
+            int rawSpeed = config.getResourceBaseTime()
+                + ChickenUtils.getResourceTier(chicken)
+                - 2 * ChickenUtils.getDNAStrength(chicken);
+            int speed = Math.max(1, rawSpeed / Math.max(1, getSpeed()));
+
             MachineRecipe recipe = new MachineRecipe(
                 config.isTest() ? 1 : speed,
                 new ItemStack[] {chicken},
@@ -146,8 +135,14 @@ public class ExcitationChamber extends AbstractMachine {
                 ChickenUtils.possiblyHarm(chicken);
                 if (ChickenUtils.getHealth(chicken) <= 0d) {
                     ItemUtils.consumeItem(chicken, false);
-                    GeneticChickengineering.getScheduler().run(() ->
-                        menu.getLocation().getWorld().playSound(menu.getLocation(), Sound.ENTITY_CHICKEN_DEATH, 1f, 1f)
+                    GeneticChickengineering.getPlatformSupport().runAt(
+                        menu.getLocation(),
+                        () -> menu.getLocation().getWorld().playSound(
+                            menu.getLocation(),
+                            Sound.ENTITY_CHICKEN_DEATH,
+                            1f,
+                            1f
+                        )
                     );
                     continue;
                 }
@@ -158,5 +153,4 @@ public class ExcitationChamber extends AbstractMachine {
 
         return null;
     }
-
 }
