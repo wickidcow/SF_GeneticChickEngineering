@@ -3,14 +3,16 @@ package net.guizhanss.gcereborn.core.adapters;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
@@ -25,14 +27,16 @@ import net.guizhanss.gcereborn.GeneticChickengineering;
 import net.guizhanss.gcereborn.core.services.LocalizationService;
 
 /**
- * This class is a wholesale copy of TheBusyBiscuit's MobCapturer.
- * <p>
- * This is a simple Adapter that allows conversion between a {@link LivingEntity} and
- * a {@link JsonObject}.
- * <p>
- * It also requires the implementation of {@link PersistentDataType}.
+ * Entity data adapter used by Pocket Chickens.
+ *
+ * <p>The original implementation stored attribute modifiers by UUID. Bukkit/Paper migrated
+ * attribute modifiers to namespaced keys in 1.21, and the compatibility UUID accessor can throw
+ * for vanilla keyed modifiers. This implementation stores modern keys and can still read the old
+ * JSON shape so existing Pocket Chickens remain usable.</p>
  */
 public interface MobAdapter<T extends LivingEntity> extends PersistentDataType<String, JsonObject> {
+
+    String LEGACY_MODIFIER_NAMESPACE = "geneticchickengineering";
 
     Class<T> getEntityClass();
 
@@ -55,54 +59,84 @@ public interface MobAdapter<T extends LivingEntity> extends PersistentDataType<S
         return lore;
     }
 
+    @Override
     default Class<String> getPrimitiveType() {
         return String.class;
     }
 
+    @Override
     default Class<JsonObject> getComplexType() {
         return JsonObject.class;
     }
 
+    @Override
     default String toPrimitive(JsonObject json, PersistentDataAdapterContext context) {
         return json.toString();
     }
 
+    @Override
     default JsonObject fromPrimitive(String primitive, PersistentDataAdapterContext context) {
-        return new JsonParser().parse(primitive).getAsJsonObject();
+        return JsonParser.parseString(primitive).getAsJsonObject();
     }
 
     default void apply(T entity, JsonObject json) {
-        // We need to apply Attributes before the health.
         JsonObject attributes = json.getAsJsonObject("_attributes");
 
-        for (Map.Entry<String, JsonElement> entry : attributes.entrySet()) {
-            AttributeInstance instance = entity.getAttribute(Attribute.valueOf(entry.getKey()));
+        if (attributes != null) {
+            for (Map.Entry<String, JsonElement> entry : attributes.entrySet()) {
+                Attribute attributeType = resolveAttribute(entry.getKey());
+                if (attributeType == null) {
+                    continue;
+                }
 
-            if (instance != null) {
+                AttributeInstance instance = entity.getAttribute(attributeType);
+                if (instance == null) {
+                    continue;
+                }
+
                 for (AttributeModifier modifier : new ArrayList<>(instance.getModifiers())) {
                     instance.removeModifier(modifier);
                 }
 
                 JsonObject attribute = entry.getValue().getAsJsonObject();
-                instance.setBaseValue(attribute.get("base").getAsDouble());
+                if (attribute.has("base")) {
+                    instance.setBaseValue(attribute.get("base").getAsDouble());
+                }
 
                 JsonArray modifiers = attribute.getAsJsonArray("modifiers");
+                if (modifiers == null) {
+                    continue;
+                }
 
                 for (JsonElement modifier : modifiers) {
                     JsonObject obj = modifier.getAsJsonObject();
+                    NamespacedKey key = readModifierKey(obj);
+                    if (key == null) {
+                        continue;
+                    }
 
-                    String uuid = obj.get("uuid").getAsString();
-                    String name = obj.get("name").getAsString();
                     double amount = obj.get("amount").getAsDouble();
-                    int operation = obj.get("operation").getAsInt();
+                    int operationIndex = obj.get("operation").getAsInt();
+                    Operation[] operations = Operation.values();
+                    if (operationIndex < 0 || operationIndex >= operations.length) {
+                        continue;
+                    }
 
-                    AttributeModifier mod = new AttributeModifier(UUID.fromString(uuid), name, amount, Operation.values()[operation]);
-                    instance.addModifier(mod);
+                    try {
+                        instance.addModifier(new AttributeModifier(key, amount, operations[operationIndex]));
+                    } catch (IllegalArgumentException ignored) {
+                        // A malformed/duplicate legacy modifier must not make a Pocket Chicken unusable.
+                    }
                 }
             }
         }
 
-        entity.setHealth(json.get("_health").getAsDouble());
+        double health = json.get("_health").getAsDouble();
+        AttributeInstance maxHealth = entity.getAttribute(Attribute.MAX_HEALTH);
+        if (maxHealth != null) {
+            health = Math.min(health, maxHealth.getValue());
+        }
+        entity.setHealth(Math.max(0.01D, health));
         entity.setAbsorptionAmount(json.get("_absorption").getAsDouble());
         entity.setRemoveWhenFarAway(json.get("_removeWhenFarAway").getAsBoolean());
 
@@ -120,27 +154,30 @@ public interface MobAdapter<T extends LivingEntity> extends PersistentDataType<S
         entity.setFireTicks(json.get("_fireTicks").getAsInt());
 
         JsonObject effects = json.getAsJsonObject("_effects");
+        if (effects != null) {
+            for (Map.Entry<String, JsonElement> entry : effects.entrySet()) {
+                PotionEffectType type = PotionEffectType.getByName(entry.getKey());
+                if (type == null) {
+                    continue;
+                }
 
-        for (Map.Entry<String, JsonElement> entry : effects.entrySet()) {
-            PotionEffectType type = PotionEffectType.getByName(entry.getKey());
-
-            if (type != null) {
                 JsonObject obj = entry.getValue().getAsJsonObject();
-
-                int duration = obj.get("duration").getAsInt();
-                int amplifier = obj.get("amplifier").getAsInt();
-                boolean ambient = obj.get("ambient").getAsBoolean();
-                boolean particles = obj.get("particles").getAsBoolean();
-                boolean icon = obj.get("icon").getAsBoolean();
-
-                entity.addPotionEffect(new PotionEffect(type, duration, amplifier, ambient, particles, icon));
+                entity.addPotionEffect(new PotionEffect(
+                    type,
+                    obj.get("duration").getAsInt(),
+                    obj.get("amplifier").getAsInt(),
+                    obj.get("ambient").getAsBoolean(),
+                    obj.get("particles").getAsBoolean(),
+                    obj.get("icon").getAsBoolean()
+                ));
             }
         }
 
         JsonArray tags = json.getAsJsonArray("_scoreboardTags");
-
-        for (JsonElement tag : tags) {
-            entity.addScoreboardTag(tag.getAsString());
+        if (tags != null) {
+            for (JsonElement tag : tags) {
+                entity.addScoreboardTag(tag.getAsString());
+            }
         }
     }
 
@@ -163,58 +200,100 @@ public interface MobAdapter<T extends LivingEntity> extends PersistentDataType<S
 
         JsonObject attributes = new JsonObject();
 
-        for (Attribute attribute : Attribute.values()) {
+        for (Attribute attribute : Registry.ATTRIBUTE) {
             AttributeInstance instance = entity.getAttribute(attribute);
-
-            if (instance != null) {
-                JsonObject obj = new JsonObject();
-                obj.addProperty("base", instance.getBaseValue());
-
-                JsonArray modifiers = new JsonArray();
-
-                for (AttributeModifier modifier : instance.getModifiers()) {
-                    JsonObject mod = new JsonObject();
-
-                    mod.addProperty("uuid", modifier.getUniqueId().toString());
-                    mod.addProperty("name", modifier.getName());
-                    mod.addProperty("operation", modifier.getOperation().ordinal());
-                    mod.addProperty("amount", modifier.getAmount());
-
-                    modifiers.add(mod);
-                }
-
-                obj.add("modifiers", modifiers);
-                attributes.add(attribute.toString(), obj);
+            if (instance == null) {
+                continue;
             }
+
+            JsonObject obj = new JsonObject();
+            obj.addProperty("base", instance.getBaseValue());
+
+            JsonArray modifiers = new JsonArray();
+            for (AttributeModifier modifier : instance.getModifiers()) {
+                JsonObject mod = new JsonObject();
+                mod.addProperty("key", modifier.getKey().toString());
+                mod.addProperty("operation", modifier.getOperation().ordinal());
+                mod.addProperty("amount", modifier.getAmount());
+                modifiers.add(mod);
+            }
+
+            obj.add("modifiers", modifiers);
+            attributes.add(attribute.getKey().toString(), obj);
         }
 
         json.add("_attributes", attributes);
 
         JsonObject effects = new JsonObject();
-
         for (PotionEffect effect : entity.getActivePotionEffects()) {
             JsonObject obj = new JsonObject();
-
             obj.addProperty("duration", effect.getDuration());
             obj.addProperty("amplifier", effect.getAmplifier());
             obj.addProperty("ambient", effect.isAmbient());
             obj.addProperty("particles", effect.hasParticles());
             obj.addProperty("icon", effect.hasIcon());
-
             effects.add(effect.getType().getName(), obj);
         }
-
         json.add("_effects", effects);
 
         JsonArray tags = new JsonArray();
-
         for (String tag : entity.getScoreboardTags()) {
             tags.add(tag);
         }
-
         json.add("_scoreboardTags", tags);
 
         return json;
     }
 
+    private static Attribute resolveAttribute(String storedName) {
+        if (storedName == null || storedName.isBlank()) {
+            return null;
+        }
+
+        NamespacedKey direct = NamespacedKey.fromString(storedName.toLowerCase(Locale.ROOT));
+        if (direct != null) {
+            Attribute attribute = Registry.ATTRIBUTE.get(direct);
+            if (attribute != null) {
+                return attribute;
+            }
+        }
+
+        // Legacy Bukkit enum names were stored as strings such as GENERIC_MAX_HEALTH.
+        String candidate = storedName.toLowerCase(Locale.ROOT).replace('.', '_');
+        while (!candidate.isBlank()) {
+            Attribute attribute = Registry.ATTRIBUTE.get(NamespacedKey.minecraft(candidate));
+            if (attribute != null) {
+                return attribute;
+            }
+
+            int separator = candidate.indexOf('_');
+            if (separator < 0 || separator + 1 >= candidate.length()) {
+                break;
+            }
+            candidate = candidate.substring(separator + 1);
+        }
+
+        return null;
+    }
+
+    private static NamespacedKey readModifierKey(JsonObject obj) {
+        if (obj.has("key") && !obj.get("key").isJsonNull()) {
+            return NamespacedKey.fromString(obj.get("key").getAsString());
+        }
+
+        // Backward compatibility for old Pocket Chickens that stored UUID/name fields.
+        String legacy = null;
+        if (obj.has("uuid") && !obj.get("uuid").isJsonNull()) {
+            legacy = obj.get("uuid").getAsString();
+        } else if (obj.has("name") && !obj.get("name").isJsonNull()) {
+            legacy = obj.get("name").getAsString();
+        }
+
+        if (legacy == null || legacy.isBlank()) {
+            return null;
+        }
+
+        String safe = legacy.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9._/-]", "_");
+        return NamespacedKey.fromString(LEGACY_MODIFIER_NAMESPACE + ":legacy_modifier/" + safe);
+    }
 }
