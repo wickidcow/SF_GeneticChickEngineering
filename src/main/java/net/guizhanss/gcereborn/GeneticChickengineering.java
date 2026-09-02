@@ -8,13 +8,14 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
 
+import org.bukkit.Bukkit;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.Plugin;
 
 import io.github.thebusybiscuit.slimefun4.libraries.dough.updater.BlobBuildUpdater;
-import io.github.thebusybiscuit.slimefun4.libraries.paperlib.PaperLib;
 
 import net.guizhanss.gcereborn.core.commands.GCECommand;
+import net.guizhanss.gcereborn.core.compat.PlatformSupport;
 import net.guizhanss.gcereborn.core.services.ConfigurationService;
 import net.guizhanss.gcereborn.core.services.IntegrationService;
 import net.guizhanss.gcereborn.core.services.LocalizationService;
@@ -32,10 +33,11 @@ public class GeneticChickengineering extends AbstractAddon {
     private ConfigurationService configService;
     private LocalizationService localization;
     private IntegrationService integrationService;
+    private PlatformSupport platformSupport;
     private boolean debugEnabled = false;
 
     public GeneticChickengineering() {
-        super("ybw0014", "GeneticChickengineering-Reborn", "master", "options.auto-update");
+        super("wickidcow", "SF_GeneticChickEngineering", "master", "options.auto-update");
     }
 
     @Nonnull
@@ -53,6 +55,11 @@ public class GeneticChickengineering extends AbstractAddon {
         return inst().integrationService;
     }
 
+    @Nonnull
+    public static PlatformSupport getPlatformSupport() {
+        return inst().platformSupport;
+    }
+
     public static void debug(@Nonnull String message, @Nonnull Object... args) {
         Preconditions.checkNotNull(message, "message cannot be null");
 
@@ -68,9 +75,38 @@ public class GeneticChickengineering extends AbstractAddon {
 
     @Override
     public void enable() {
+        platformSupport = new PlatformSupport(this);
+
+        if (!platformSupport.isSupportedMinecraftVersion()) {
+            log(
+                Level.SEVERE,
+                "Unsupported Minecraft/Paper version {0}. SF Genetic ChickEngineering requires 1.21.11 or newer.",
+                Bukkit.getMinecraftVersion()
+            );
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+
+        if (!platformSupport.isPaperFamily()) {
+            log(
+                Level.SEVERE,
+                "Unsupported server software. Use Paper, Purpur, Leaf, Folia, or another compatible Paper-family server."
+            );
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+
+        log(
+            Level.INFO,
+            "Platform: {0} | Minecraft: {1} | Server: {2}",
+            platformSupport.getPlatform(),
+            Bukkit.getMinecraftVersion(),
+            Bukkit.getVersion()
+        );
+
         File datadir = this.getDataFolder();
-        if (!datadir.exists()) {
-            datadir.mkdirs();
+        if (!datadir.exists() && !datadir.mkdirs()) {
+            log(Level.WARNING, "Could not create plugin data directory: {0}", datadir.getAbsolutePath());
         }
 
         // config
@@ -90,13 +126,6 @@ public class GeneticChickengineering extends AbstractAddon {
         localization.setIdPrefix("GCE_");
         log(Level.INFO, localization.getString("console.load.language"), lang);
 
-        // paper check
-        if (!PaperLib.isPaper()) {
-            log(Level.SEVERE, localization.getString("console.paper-only"));
-            getServer().getPluginManager().disablePlugin(this);
-            return;
-        }
-
         // items
         log(Level.INFO, localization.getString("console.load.items"));
         Items.setup(this);
@@ -104,8 +133,6 @@ public class GeneticChickengineering extends AbstractAddon {
         // researches
         log(Level.INFO, localization.getString("console.load.researches"));
         Researches.setup();
-
-        // listeners
 
         // commands
         if (configService.isCommandsEnabled()) {
@@ -127,7 +154,7 @@ public class GeneticChickengineering extends AbstractAddon {
 
     @Override
     public void disable() {
-        // do nothing
+        // No addon-owned repeating tasks are retained here. Slimefun owns machine tick lifecycle.
     }
 
     private void setupMetrics() {
@@ -140,12 +167,17 @@ public class GeneticChickengineering extends AbstractAddon {
             new BlobBuildUpdater(this, getFile(), getGithubRepo()).start();
         } else if (getPluginVersion().startsWith("Build")) {
             try {
-                // use updater in lib plugin
                 Class<?> clazz = Class.forName("net.guizhanss.guizhanlibplugin.updater.GuizhanUpdater");
-                Method updaterStart = clazz.getDeclaredMethod("start", Plugin.class, File.class, String.class, String.class, String.class);
+                Method updaterStart = clazz.getDeclaredMethod(
+                    "start",
+                    Plugin.class,
+                    File.class,
+                    String.class,
+                    String.class,
+                    String.class
+                );
                 updaterStart.invoke(null, this, getFile(), getGithubUser(), getGithubRepo(), getGithubBranch());
             } catch (Exception ignored) {
-                // use updater in lib
                 new GuizhanBuildsUpdater(this, getFile(), getGithubUser(), getGithubRepo(), getGithubBranch()).start();
             }
         }
