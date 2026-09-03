@@ -18,6 +18,10 @@ on:
 permissions:
   contents: write
 
+env:
+  STABLE_VERSION: '1.0.1'
+  STABLE_JAR: 'SF_GeneticChickEngineering1.0.1.jar'
+
 jobs:
   compatibility-build:
     name: ${{ matrix.target.name }}
@@ -44,6 +48,50 @@ jobs:
 
       - name: Build compatibility target
         run: mvn -B -ntp -Dpaper.version='${{ matrix.target.paper }}' clean package
+
+  publish-stable-jar:
+    name: Publish 1.0.1 release JAR
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: compatibility-build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Build stable JAR from universal baseline
+        run: mvn -B -ntp -Drevision='${{ env.STABLE_VERSION }}' -Dpaper.version='1.21.11-R0.1-SNAPSHOT' clean package
+
+      - name: Verify stable JAR
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "target/${STABLE_JAR}"
+          javap -verbose -classpath "target/${STABLE_JAR}" net.guizhanss.gcereborn.GeneticChickengineering | grep -Fq 'major version: 65'
+          sha256sum "target/${STABLE_JAR}"
+
+      - name: Publish stable release once
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="v${STABLE_VERSION}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "$TAG already exists; leaving the stable release unchanged."
+          else
+            gh release create "$TAG" "target/${STABLE_JAR}" \
+              --target "$GITHUB_SHA" \
+              --title "SF Genetic ChickEngineering ${STABLE_VERSION}" \
+              --notes "Genetic ChickEngineering 1.0.1 includes the 1.21.11 through 26.2 modernization and the chicken capture/release anti-duplication fixes. Pocket Chickens are consumed only after a successful restore, and failed restoration rolls back the spawned chicken without consuming the item."
+          fi
 
   publish-development-jar:
     name: Publish raw development JAR
