@@ -19,8 +19,8 @@ permissions:
   contents: write
 
 env:
-  STABLE_VERSION: '1.0.1'
-  STABLE_JAR: 'SF_GeneticChickEngineering1.0.1.jar'
+  STABLE_VERSION: '1.0.2'
+  STABLE_JAR: 'SF_GeneticChickEngineering1.0.2.jar'
 
 jobs:
   compatibility-build:
@@ -32,8 +32,10 @@ jobs:
         target:
           - name: Paper 1.21.11 API floor
             paper: 1.21.11-R0.1-SNAPSHOT
-          - name: Paper 26.2 current line
-            paper: '[26.2.build.1,26.3)'
+          - name: Paper 26.2 primary line
+            paper: 26.2.build.112-stable
+          - name: Paper 26.3 alpha compatibility
+            paper: 26.3-rc-3.build.1-alpha
 
     steps:
       - name: Checkout
@@ -50,7 +52,7 @@ jobs:
         run: mvn -B -ntp -Dpaper.version='${{ matrix.target.paper }}' clean package
 
   publish-stable-jar:
-    name: Publish 1.0.1 release JAR
+    name: Publish 1.0.2 release JAR
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     needs: compatibility-build
     runs-on: ubuntu-latest
@@ -84,13 +86,11 @@ jobs:
         run: |
           set -euo pipefail
           TAG="v${STABLE_VERSION}"
+          NOTES="Genetic ChickEngineering 1.0.2 adds Paper 26.3 alpha compatibility validation while preserving the Paper 1.21.11 / Java 21 universal baseline and Paper 26.2 as the primary production target. Chicken capture/release anti-duplication safeguards remain unchanged."
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "$TAG already exists; leaving the stable release unchanged."
+            gh release upload "$TAG" "target/${STABLE_JAR}" --clobber
           else
-            gh release create "$TAG" "target/${STABLE_JAR}" \
-              --target "$GITHUB_SHA" \
-              --title "SF Genetic ChickEngineering ${STABLE_VERSION}" \
-              --notes "Genetic ChickEngineering 1.0.1 includes the 1.21.11 through 26.2 modernization and the chicken capture/release anti-duplication fixes. Pocket Chickens are consumed only after a successful restore, and failed restoration rolls back the spawned chicken without consuming the item."
+            gh release create "$TAG" "target/${STABLE_JAR}" --target "$GITHUB_SHA" --title "SF Genetic ChickEngineering ${STABLE_VERSION}" --notes "$NOTES"
           fi
 
   publish-development-jar:
@@ -110,8 +110,8 @@ jobs:
           java-version: '25'
           cache: maven
 
-      - name: Build development JAR
-        run: mvn -B -ntp -Drevision=dev -Dpaper.version='[26.2.build.1,26.3)' clean package
+      - name: Build development JAR against Paper 26.2 primary
+        run: mvn -B -ntp -Drevision=dev -Dpaper.version='26.2.build.112-stable' clean package
 
       - name: Prepare raw JAR
         shell: bash
@@ -128,13 +128,13 @@ jobs:
             gh release upload development SF_GeneticChickEngineering-dev.jar --clobber
             gh release edit development \
               --title 'SF Genetic ChickEngineering Development Build' \
-              --notes "Latest successful development build from master: ${GITHUB_SHA}"
+              --notes "Latest successful Paper 26.2-primary development build from master: ${GITHUB_SHA}"
           else
             gh release create development \
               SF_GeneticChickEngineering-dev.jar \
               --target "$GITHUB_SHA" \
               --title 'SF Genetic ChickEngineering Development Build' \
-              --notes "Latest successful development build from master: ${GITHUB_SHA}" \
+              --notes "Latest successful Paper 26.2-primary development build from master: ${GITHUB_SHA}" \
               --prerelease
           fi
 
