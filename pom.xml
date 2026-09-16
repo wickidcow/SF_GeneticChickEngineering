@@ -13,13 +13,13 @@
     <url>https://github.com/wickidcow/SF_GeneticChickEngineering</url>
 
     <properties>
-        <revision>1.0.0-SNAPSHOT</revision>
+        <revision>1.0.2</revision>
         <maven.compiler.release>21</maven.compiler.release>
         <maven.compiler.parameters>true</maven.compiler.parameters>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <lombok.version>1.18.44</lombok.version>
-        <paper.version>[26.2.build.1,26.3)</paper.version>
+        <paper.version>1.21.11-R0.1-SNAPSHOT</paper.version>
         <slimefun.groupId>com.github.Slimefun</slimefun.groupId>
         <slimefun.artifactId>Slimefun4</slimefun.artifactId>
         <slimefun.version>RC-37</slimefun.version>
@@ -34,188 +34,61 @@
     </licenses>
 
     <repositories>
-        <repository>
-            <id>papermc</id>
-            <url>https://repo.papermc.io/repository/maven-public/</url>
-        </repository>
-        <repository>
-            <id>spigot-snapshots</id>
-            <url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url>
-        </repository>
-        <repository>
-            <id>jitpack</id>
-            <url>https://jitpack.io</url>
-        </repository>
-        <repository>
-            <id>norain-releases</id>
-            <url>https://maven.norain.city/releases</url>
-        </repository>
-        <repository>
-            <id>norain-snapshots</id>
-            <url>https://maven.norain.city/snapshots</url>
-        </repository>
-        <repository>
-            <id>codemc</id>
-            <url>https://repo.codemc.io/repository/maven-public/</url>
-        </repository>
-        <repository>
-            <id>bg-repo</id>
-            <url>https://repo.bg-software.com/repository/api/</url>
-        </repository>
+        <repository><id>papermc</id><url>https://repo.papermc.io/repository/maven-public/</url></repository>
+        <repository><id>spigot-snapshots</id><url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url></repository>
+        <repository><id>jitpack</id><url>https://jitpack.io</url></repository>
+        <repository><id>norain-releases</id><url>https://maven.norain.city/releases</url></repository>
+        <repository><id>norain-snapshots</id><url>https://maven.norain.city/snapshots</url></repository>
+        <repository><id>codemc</id><url>https://repo.codemc.io/repository/maven-public/</url></repository>
+        <repository><id>bg-repo</id><url>https://repo.bg-software.com/repository/api/</url></repository>
     </repositories>
 
     <build>
         <finalName>SF_GeneticChickEngineering${revision}</finalName>
         <defaultGoal>clean package</defaultGoal>
-
         <resources>
-            <resource>
-                <directory>src/main/resources</directory>
-                <filtering>true</filtering>
-            </resource>
+            <resource><directory>src/main/resources</directory><filtering>true</filtering></resource>
         </resources>
-
         <plugins>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.14.1</version>
+                <groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.14.1</version>
                 <configuration>
                     <release>${maven.compiler.release}</release>
                     <encoding>${project.build.sourceEncoding}</encoding>
-                    <!-- JDK 23+ disables implicit annotation processing. Keep Lombok explicit. -->
                     <annotationProcessorPaths>
-                        <path>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                            <version>${lombok.version}</version>
-                        </path>
+                        <path><groupId>org.projectlombok</groupId><artifactId>lombok</artifactId><version>${lombok.version}</version></path>
                     </annotationProcessorPaths>
                 </configuration>
             </plugin>
-
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-enforcer-plugin</artifactId>
-                <version>3.6.1</version>
-                <executions>
-                    <execution>
-                        <id>require-modern-build-jdk</id>
-                        <goals>
-                            <goal>enforce</goal>
-                        </goals>
-                        <configuration>
-                            <rules>
-                                <requireJavaVersion>
-                                    <version>[25,)</version>
-                                    <message>Java 25+ is required to build against Paper 26.2. The produced plugin still targets Java 21 bytecode.</message>
-                                </requireJavaVersion>
-                            </rules>
-                        </configuration>
-                    </execution>
-                </executions>
+                <groupId>org.apache.maven.plugins</groupId><artifactId>maven-enforcer-plugin</artifactId><version>3.6.1</version>
+                <executions><execution><id>require-modern-build-jdk</id><goals><goal>enforce</goal></goals><configuration><rules><requireJavaVersion><version>[25,)</version><message>Java 25+ is required for the compatibility build matrix. The produced plugin remains Java 21 bytecode.</message></requireJavaVersion></rules></configuration></execution></executions>
             </plugin>
-
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-                <version>3.6.2</version>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                        <configuration>
-                            <createDependencyReducedPom>false</createDependencyReducedPom>
-                            <minimizeJar>false</minimizeJar>
-                            <relocations>
-                                <relocation>
-                                    <pattern>org.bstats</pattern>
-                                    <shadedPattern>net.guizhanss.gcereborn.libs.bstats</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>net.guizhanss.guizhanlib</pattern>
-                                    <shadedPattern>net.guizhanss.gcereborn.libs.guizhanlib</shadedPattern>
-                                </relocation>
-                            </relocations>
-                            <filters>
-                                <filter>
-                                    <artifact>*:*</artifact>
-                                    <excludes>
-                                        <exclude>META-INF/*.SF</exclude>
-                                        <exclude>META-INF/*.DSA</exclude>
-                                        <exclude>META-INF/*.RSA</exclude>
-                                    </excludes>
-                                </filter>
-                            </filters>
-                        </configuration>
-                    </execution>
-                </executions>
+                <groupId>org.apache.maven.plugins</groupId><artifactId>maven-shade-plugin</artifactId><version>3.6.2</version>
+                <executions><execution><phase>package</phase><goals><goal>shade</goal></goals><configuration>
+                    <createDependencyReducedPom>false</createDependencyReducedPom><minimizeJar>false</minimizeJar>
+                    <relocations>
+                        <relocation><pattern>org.bstats</pattern><shadedPattern>net.guizhanss.gcereborn.libs.bstats</shadedPattern></relocation>
+                        <relocation><pattern>net.guizhanss.guizhanlib</pattern><shadedPattern>net.guizhanss.gcereborn.libs.guizhanlib</shadedPattern></relocation>
+                    </relocations>
+                    <filters><filter><artifact>*:*</artifact><excludes><exclude>META-INF/*.SF</exclude><exclude>META-INF/*.DSA</exclude><exclude>META-INF/*.RSA</exclude></excludes></filter></filters>
+                </configuration></execution></executions>
             </plugin>
         </plugins>
     </build>
 
     <dependencies>
+        <dependency><groupId>io.papermc.paper</groupId><artifactId>paper-api</artifactId><version>${paper.version}</version><scope>provided</scope></dependency>
         <dependency>
-            <groupId>io.papermc.paper</groupId>
-            <artifactId>paper-api</artifactId>
-            <version>${paper.version}</version>
-            <scope>provided</scope>
+            <groupId>${slimefun.groupId}</groupId><artifactId>${slimefun.artifactId}</artifactId><version>${slimefun.version}</version><scope>provided</scope>
+            <exclusions><exclusion><groupId>io.github.baked-libs</groupId><artifactId>dough</artifactId></exclusion></exclusions>
         </dependency>
-
-        <dependency>
-            <groupId>${slimefun.groupId}</groupId>
-            <artifactId>${slimefun.artifactId}</artifactId>
-            <version>${slimefun.version}</version>
-            <scope>provided</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>io.github.baked-libs</groupId>
-                    <artifactId>dough</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
-        <dependency>
-            <groupId>com.google.code.findbugs</groupId>
-            <artifactId>jsr305</artifactId>
-            <version>3.0.2</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.bstats</groupId>
-            <artifactId>bstats-bukkit</artifactId>
-            <version>3.2.1</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <version>${lombok.version}</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- Temporarily shaded while the legacy addon helpers are replaced with native equivalents. -->
-        <dependency>
-            <groupId>net.guizhanss</groupId>
-            <artifactId>GuizhanLib-api</artifactId>
-            <version>1.8.1</version>
-        </dependency>
-
-        <dependency>
-            <groupId>uk.antiperson.stackmob</groupId>
-            <artifactId>StackMob</artifactId>
-            <version>5.8.10</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>com.bgsoftware</groupId>
-            <artifactId>WildStackerAPI</artifactId>
-            <version>2024.4</version>
-            <scope>provided</scope>
-        </dependency>
+        <dependency><groupId>com.google.code.findbugs</groupId><artifactId>jsr305</artifactId><version>3.0.2</version><scope>provided</scope></dependency>
+        <dependency><groupId>org.bstats</groupId><artifactId>bstats-bukkit</artifactId><version>3.2.1</version></dependency>
+        <dependency><groupId>org.projectlombok</groupId><artifactId>lombok</artifactId><version>${lombok.version}</version><scope>provided</scope></dependency>
+        <dependency><groupId>net.guizhanss</groupId><artifactId>GuizhanLib-api</artifactId><version>1.8.1</version></dependency>
+        <dependency><groupId>uk.antiperson.stackmob</groupId><artifactId>StackMob</artifactId><version>5.8.10</version><scope>provided</scope></dependency>
+        <dependency><groupId>com.bgsoftware</groupId><artifactId>WildStackerAPI</artifactId><version>2024.4</version><scope>provided</scope></dependency>
     </dependencies>
 </project>
