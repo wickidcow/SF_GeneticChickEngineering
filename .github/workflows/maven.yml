@@ -19,8 +19,8 @@ permissions:
   contents: write
 
 env:
-  STABLE_VERSION: '1.0.2'
-  STABLE_JAR: 'SF_GeneticChickEngineering1.0.2.jar'
+  STABLE_VERSION: '1.0.3'
+  STABLE_JAR: 'SF_GeneticChickEngineering1.0.3.jar'
 
 jobs:
   compatibility-build:
@@ -52,7 +52,7 @@ jobs:
         run: mvn -B -ntp -Dpaper.version='${{ matrix.target.paper }}' clean package
 
   publish-stable-jar:
-    name: Publish 1.0.2 release JAR
+    name: Publish 1.0.3 release JAR
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     needs: compatibility-build
     runs-on: ubuntu-latest
@@ -86,7 +86,7 @@ jobs:
         run: |
           set -euo pipefail
           TAG="v${STABLE_VERSION}"
-          NOTES="Genetic ChickEngineering 1.0.2 adds Paper 26.3 alpha compatibility validation while preserving the Paper 1.21.11 / Java 21 universal baseline and Paper 26.2 as the primary production target. Chicken capture/release anti-duplication safeguards remain unchanged."
+          NOTES="Genetic ChickEngineering 1.0.3 adds optional stacked Pocket Chicken production in Excitation Chambers. Each stacked chicken receives an independent resource/egg roll while processing time and chamber energy usage remain unchanged. Stacked production safely falls back to 1x when the optional pain system is enabled. Paper 1.21.11, 26.2, and 26.3 compatibility validation remains in place."
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "target/${STABLE_JAR}" --clobber
           else
