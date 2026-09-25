@@ -23,6 +23,7 @@ public final class ConfigurationService {
     private int mutationRate;
     private int resourceFailRate;
     private int resourceBaseTime;
+    private boolean allowStackedChickens;
     private boolean painEnabled;
     private double painChance;
     private boolean painDeathEnabled;
@@ -49,6 +50,7 @@ public final class ConfigurationService {
         mutationRate = config.getInt("options.mutation-rate", 1, 30, 100);
         resourceFailRate = config.getInt("options.resource-fail-rate", 0, 0, 100);
         resourceBaseTime = config.getInt("options.resource-base-time", 14, 14, 100);
+        allowStackedChickens = config.getBoolean("options.allow-stacked-chickens", false);
         painEnabled = config.getBoolean("options.enable-pain", false);
         painChance = config.getDouble("options.pain-chance", 0d, 2d, 100d);
         painDeathEnabled = config.getBoolean("options.pain-kills", false);
