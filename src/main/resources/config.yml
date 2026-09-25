@@ -25,6 +25,12 @@ options:
   # The base time for resource generation (in seconds).
   # Default: 14, Range: 14 ~ 100
   resource-base-time: 14
+  # Whether identical Pocket Chickens can run in parallel in an Excitation Chamber.
+  # When enabled, each chicken in the stack gets its own resource/egg roll and output is multiplied
+  # by the valid stack size. Chamber processing time and energy usage stay unchanged.
+  # For safety, stacked production automatically falls back to 1x while enable-pain is true because
+  # one ItemStack cannot represent different health values for multiple individual chickens.
+  allow-stacked-chickens: false
   # Should the machines hurt the chickens.
   # This enables the Restoration Chamber.
   enable-pain: false
