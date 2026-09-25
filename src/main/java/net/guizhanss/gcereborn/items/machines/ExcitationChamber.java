@@ -90,9 +90,23 @@ public class ExcitationChamber extends AbstractMachine {
         super.tick(b);
         BlockMenu inv = BlockStorage.getInventory(b);
         MachineProcessor<CraftingOperation> processor = getMachineProcessor();
-        if (processor.getOperation(b) != null && findNextRecipe(inv) == null) {
-            processor.endOperation(b);
-            inv.replaceExistingItem(INFO_SLOT, GuiItems.BLACK_PANE);
+        CraftingOperation operation = processor.getOperation(b);
+
+        if (operation != null) {
+            var config = GeneticChickengineering.getConfigService();
+            boolean validInput;
+
+            if (config.isAllowStackedChickens() && !config.isPainEnabled()) {
+                validInput = matchesRunningStack(inv, operation);
+            } else {
+                // Preserve the original validation/pain behavior when stacked production is not active.
+                validInput = findNextRecipe(inv) != null;
+            }
+
+            if (!validInput) {
+                processor.endOperation(b);
+                inv.replaceExistingItem(INFO_SLOT, GuiItems.BLACK_PANE);
+            }
         }
     }
 
@@ -117,7 +131,7 @@ public class ExcitationChamber extends AbstractMachine {
             int speed = Math.max(1, rawSpeed / Math.max(1, getSpeed()));
 
             ItemStack recipeChicken = chicken.clone();
-            recipeChicken.setAmount(1);
+            recipeChicken.setAmount(multiplier);
 
             MachineRecipe recipe = new MachineRecipe(
                 config.isTest() ? 1 : speed,
@@ -152,6 +166,26 @@ public class ExcitationChamber extends AbstractMachine {
         }
 
         return null;
+    }
+
+    private boolean matchesRunningStack(@Nonnull BlockMenu menu, @Nonnull CraftingOperation operation) {
+        ItemStack[] ingredients = operation.getIngredients();
+        if (ingredients.length == 0 || ingredients[0] == null) {
+            return false;
+        }
+
+        ItemStack expected = ingredients[0];
+        for (int slot : getInputSlots()) {
+            ItemStack current = menu.getItemInSlot(slot);
+            if (ChickenUtils.isPocketChicken(current)
+                && ChickenUtils.isAdult(current)
+                && current.getAmount() >= expected.getAmount()
+                && current.isSimilar(expected)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private int getStackMultiplier(@Nonnull ItemStack chicken, boolean stackingEnabled, boolean painEnabled) {
