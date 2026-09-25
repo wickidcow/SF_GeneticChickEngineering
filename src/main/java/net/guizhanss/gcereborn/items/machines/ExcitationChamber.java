@@ -1,5 +1,7 @@
 package net.guizhanss.gcereborn.items.machines;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 import javax.annotation.Nonnull;
@@ -88,9 +90,23 @@ public class ExcitationChamber extends AbstractMachine {
         super.tick(b);
         BlockMenu inv = BlockStorage.getInventory(b);
         MachineProcessor<CraftingOperation> processor = getMachineProcessor();
-        if (processor.getOperation(b) != null && findNextRecipe(inv) == null) {
-            processor.endOperation(b);
-            inv.replaceExistingItem(INFO_SLOT, GuiItems.BLACK_PANE);
+        CraftingOperation operation = processor.getOperation(b);
+
+        if (operation != null) {
+            var config = GeneticChickengineering.getConfigService();
+            boolean validInput;
+
+            if (config.isAllowStackedChickens() && !config.isPainEnabled()) {
+                validInput = matchesRunningStack(inv, operation);
+            } else {
+                // Preserve the original validation/pain behavior when stacked production is not active.
+                validInput = findNextRecipe(inv) != null;
+            }
+
+            if (!validInput) {
+                processor.endOperation(b);
+                inv.replaceExistingItem(INFO_SLOT, GuiItems.BLACK_PANE);
+            }
         }
     }
 
@@ -106,23 +122,21 @@ public class ExcitationChamber extends AbstractMachine {
             }
 
             ItemStack resourceIcon = ChickenUtils.getResource(chicken);
-
-            ItemStack chickResource;
-            if (ThreadLocalRandom.current().nextInt(100) < config.getResourceFailRate()) {
-                chickResource = new ItemStack(Material.EGG);
-            } else {
-                chickResource = resourceIcon.clone();
-            }
+            int multiplier = getStackMultiplier(chicken, config.isAllowStackedChickens(), config.isPainEnabled());
+            ItemStack[] outputs = rollOutputs(resourceIcon, multiplier, config.getResourceFailRate());
 
             int rawSpeed = config.getResourceBaseTime()
                 + ChickenUtils.getResourceTier(chicken)
                 - 2 * ChickenUtils.getDNAStrength(chicken);
             int speed = Math.max(1, rawSpeed / Math.max(1, getSpeed()));
 
+            ItemStack recipeChicken = chicken.clone();
+            recipeChicken.setAmount(multiplier);
+
             MachineRecipe recipe = new MachineRecipe(
                 config.isTest() ? 1 : speed,
-                new ItemStack[] {chicken},
-                new ItemStack[] {chickResource}
+                new ItemStack[] {recipeChicken},
+                outputs
             );
             if (!InvUtils.fitAll(menu.toInventory(), recipe.getOutput(), getOutputSlots())) {
                 continue;
@@ -152,5 +166,70 @@ public class ExcitationChamber extends AbstractMachine {
         }
 
         return null;
+    }
+
+    private boolean matchesRunningStack(@Nonnull BlockMenu menu, @Nonnull CraftingOperation operation) {
+        ItemStack[] ingredients = operation.getIngredients();
+        if (ingredients.length == 0 || ingredients[0] == null) {
+            return false;
+        }
+
+        ItemStack expected = ingredients[0];
+        for (int slot : getInputSlots()) {
+            ItemStack current = menu.getItemInSlot(slot);
+            if (ChickenUtils.isPocketChicken(current)
+                && ChickenUtils.isAdult(current)
+                && current.getAmount() >= expected.getAmount()
+                && current.isSimilar(expected)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private int getStackMultiplier(@Nonnull ItemStack chicken, boolean stackingEnabled, boolean painEnabled) {
+        if (!stackingEnabled || painEnabled) {
+            return 1;
+        }
+
+        return Math.max(1, Math.min(chicken.getAmount(), chicken.getMaxStackSize()));
+    }
+
+    @Nonnull
+    private ItemStack[] rollOutputs(@Nonnull ItemStack resource, int multiplier, int failRate) {
+        int eggRolls = 0;
+        int resourceRolls = 0;
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+
+        for (int i = 0; i < multiplier; i++) {
+            if (random.nextInt(100) < failRate) {
+                eggRolls++;
+            } else {
+                resourceRolls++;
+            }
+        }
+
+        List<ItemStack> outputs = new ArrayList<>();
+        appendOutput(outputs, resource, (long) resource.getAmount() * resourceRolls);
+        appendOutput(outputs, new ItemStack(Material.EGG), eggRolls);
+        return outputs.toArray(new ItemStack[0]);
+    }
+
+    private void appendOutput(@Nonnull List<ItemStack> outputs, @Nonnull ItemStack template, long totalAmount) {
+        if (totalAmount <= 0) {
+            return;
+        }
+
+        int maxStackSize = Math.max(1, template.getMaxStackSize());
+        long remaining = totalAmount;
+
+        while (remaining > 0) {
+            ItemStack output = template.clone();
+            int amount = (int) Math.min(remaining, maxStackSize);
+            output.setAmount(amount);
+            outputs.add(output);
+            remaining -= amount;
+        }
     }
 }

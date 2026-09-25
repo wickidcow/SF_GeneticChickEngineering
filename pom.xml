@@ -13,7 +13,7 @@
     <url>https://github.com/wickidcow/SF_GeneticChickEngineering</url>
 
     <properties>
-        <revision>1.0.2</revision>
+        <revision>1.0.3</revision>
         <maven.compiler.release>21</maven.compiler.release>
         <maven.compiler.parameters>true</maven.compiler.parameters>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
