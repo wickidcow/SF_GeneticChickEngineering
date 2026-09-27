@@ -12,6 +12,7 @@ import me.mrCookieSlime.CSCoreLibPlugin.general.Inventory.ChestMenu.MenuClickHan
  * compatibility detail here instead of spreading deprecated menu types through
  * machine implementations.</p>
  */
+@SuppressWarnings("deprecation")
 public final class SlimefunMenuCompat {
 
     private SlimefunMenuCompat() {}
@@ -22,7 +23,6 @@ public final class SlimefunMenuCompat {
      * remains protected.
      */
     @Nonnull
-    @SuppressWarnings("deprecation")
     public static MenuClickHandler getLegacyOutputSlotHandler() {
         return (player, slot, item, action) -> item != null && !item.getType().isAir();
     }
