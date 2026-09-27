@@ -29,6 +29,7 @@ import net.guizhanss.gcereborn.GeneticChickengineering;
 import net.guizhanss.gcereborn.items.GCEItems;
 import net.guizhanss.gcereborn.utils.ChickenUtils;
 import net.guizhanss.gcereborn.utils.GuiItems;
+import net.guizhanss.gcereborn.utils.SlimefunMenuCompat;
 import net.guizhanss.gcereborn.utils.SlimefunStorageCompat;
 
 public class ExcitationChamber extends AbstractMachine {
@@ -81,7 +82,7 @@ public class ExcitationChamber extends AbstractMachine {
         preset.addItem(INFO_SLOT, GuiItems.BLACK_PANE, ChestMenuUtils.getEmptyClickHandler());
 
         for (int i : getOutputSlots()) {
-            preset.addMenuClickHandler(i, (p, slot, cursor, action) -> cursor != null && !cursor.getType().isAir());
+            preset.addMenuClickHandler(i, SlimefunMenuCompat.getLegacyOutputSlotHandler());
         }
     }
 

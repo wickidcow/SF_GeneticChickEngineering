@@ -1,0 +1,29 @@
+package net.guizhanss.gcereborn.utils;
+
+import javax.annotation.Nonnull;
+
+import me.mrCookieSlime.CSCoreLibPlugin.general.Inventory.ChestMenu.MenuClickHandler;
+
+/**
+ * Compatibility handlers for the RC-37 chest-menu ABI.
+ *
+ * <p>RC-37's MenuClickHandler signature contains the deprecated ClickAction
+ * type even when an addon does not use that argument. Keep that unavoidable
+ * compatibility detail here instead of spreading deprecated menu types through
+ * machine implementations.</p>
+ */
+public final class SlimefunMenuCompat {
+
+    private SlimefunMenuCompat() {}
+
+    /**
+     * Preserves Genetic ChickEngineering's historical output-slot behavior:
+     * clicking an occupied output slot is allowed, while an empty output slot
+     * remains protected.
+     */
+    @Nonnull
+    @SuppressWarnings("deprecation")
+    public static MenuClickHandler getLegacyOutputSlotHandler() {
+        return (player, slot, item, action) -> item != null && !item.getType().isAir();
+    }
+}
