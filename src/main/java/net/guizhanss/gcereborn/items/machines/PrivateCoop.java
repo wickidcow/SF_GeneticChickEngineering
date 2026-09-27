@@ -23,13 +23,13 @@ import io.github.thebusybiscuit.slimefun4.libraries.dough.inventory.InvUtils;
 import io.github.thebusybiscuit.slimefun4.libraries.dough.items.ItemUtils;
 
 import me.mrCookieSlime.Slimefun.Objects.SlimefunItem.abstractItems.MachineRecipe;
-import me.mrCookieSlime.Slimefun.api.BlockStorage;
 import me.mrCookieSlime.Slimefun.api.inventory.BlockMenu;
 
 import net.guizhanss.gcereborn.GeneticChickengineering;
 import net.guizhanss.gcereborn.items.GCEItems;
 import net.guizhanss.gcereborn.utils.GuiItems;
 import net.guizhanss.gcereborn.utils.ChickenUtils;
+import net.guizhanss.gcereborn.utils.SlimefunStorageCompat;
 
 public class PrivateCoop extends AbstractMachine {
 
@@ -53,7 +53,10 @@ public class PrivateCoop extends AbstractMachine {
                 Location l = b.getLocation().toCenterLocation();
                 l.getWorld().spawnParticle(Particle.HEART, l.add(0, 0.5, 0), 2, 0.2, 0, 0.2);
             }
-            BlockMenu inv = BlockStorage.getInventory(b);
+            BlockMenu inv = SlimefunStorageCompat.getBlockMenu(b);
+            if (inv == null) {
+                return;
+            }
             // Check if parent chickens have been removed
             if (this.getParents(inv).size() != 2) {
                 processor.endOperation(b);
