@@ -10,15 +10,16 @@ import com.google.common.base.Preconditions;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+
 import net.guizhanss.gcereborn.GeneticChickengineering;
 import net.guizhanss.guizhanlib.minecraft.utils.ChatUtil;
 import net.guizhanss.guizhanlib.slimefun.addon.SlimefunLocalization;
-import net.md_5.bungee.api.ChatMessageType;
-import net.md_5.bungee.api.chat.BaseComponent;
-import net.md_5.bungee.api.chat.TextComponent;
 
 @SuppressWarnings("ConstantConditions")
 public final class LocalizationService extends SlimefunLocalization {
+
+    private static final LegacyComponentSerializer LEGACY_SERIALIZER = LegacyComponentSerializer.legacySection();
 
     public LocalizationService(GeneticChickengineering plugin) {
         super(plugin);
@@ -45,7 +46,6 @@ public final class LocalizationService extends SlimefunLocalization {
 
         String message = MessageFormat.format(getString("messages." + messageKey), args);
 
-        BaseComponent[] components = TextComponent.fromLegacyText(ChatUtil.color(message));
-        p.spigot().sendMessage(ChatMessageType.ACTION_BAR, components);
+        p.sendActionBar(LEGACY_SERIALIZER.deserialize(ChatUtil.color(message)));
     }
 }

@@ -17,6 +17,8 @@ import org.bukkit.entity.Chicken;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+
 import io.github.thebusybiscuit.slimefun4.api.items.SlimefunItemStack;
 import io.github.thebusybiscuit.slimefun4.libraries.dough.data.persistent.PersistentDataAPI;
 
@@ -36,6 +38,8 @@ import lombok.experimental.UtilityClass;
  */
 @UtilityClass
 public final class ChickenUtils {
+
+    private static final LegacyComponentSerializer LEGACY_SERIALIZER = LegacyComponentSerializer.legacySection();
 
     /**
      * Determine whether an {@link ItemStack} is a {@link PocketChicken}.
@@ -255,7 +259,7 @@ public final class ChickenUtils {
         if (json != null) {
             PersistentDataAPI.set(meta, Keys.POCKET_CHICKEN_ADAPTER, PocketChicken.ADAPTER, json);
         }
-        meta.setLore(getLore(json, dna));
+        meta.lore(getLore(json, dna).stream().map(LEGACY_SERIALIZER::deserialize).toList());
 
         item.setItemMeta(meta);
     }

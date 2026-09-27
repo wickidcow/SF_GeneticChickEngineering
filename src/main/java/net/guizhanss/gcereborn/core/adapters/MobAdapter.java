@@ -23,6 +23,11 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+
 import net.guizhanss.gcereborn.GeneticChickengineering;
 import net.guizhanss.gcereborn.core.services.LocalizationService;
 
@@ -37,6 +42,7 @@ import net.guizhanss.gcereborn.core.services.LocalizationService;
 public interface MobAdapter<T extends LivingEntity> extends PersistentDataType<String, JsonObject> {
 
     String LEGACY_MODIFIER_NAMESPACE = "geneticchickengineering";
+    LegacyComponentSerializer LEGACY_SERIALIZER = LegacyComponentSerializer.legacySection();
 
     Class<T> getEntityClass();
 
@@ -141,7 +147,7 @@ public interface MobAdapter<T extends LivingEntity> extends PersistentDataType<S
         entity.setRemoveWhenFarAway(json.get("_removeWhenFarAway").getAsBoolean());
 
         if (!json.get("_customName").isJsonNull()) {
-            entity.setCustomName(json.get("_customName").getAsString());
+            entity.customName(LEGACY_SERIALIZER.deserialize(json.get("_customName").getAsString()));
         }
 
         entity.setCustomNameVisible(json.get("_customNameVisible").getAsBoolean());
@@ -156,7 +162,7 @@ public interface MobAdapter<T extends LivingEntity> extends PersistentDataType<S
         JsonObject effects = json.getAsJsonObject("_effects");
         if (effects != null) {
             for (Map.Entry<String, JsonElement> entry : effects.entrySet()) {
-                PotionEffectType type = PotionEffectType.getByName(entry.getKey());
+                PotionEffectType type = resolvePotionEffectType(entry.getKey());
                 if (type == null) {
                     continue;
                 }
@@ -188,7 +194,8 @@ public interface MobAdapter<T extends LivingEntity> extends PersistentDataType<S
         json.addProperty("_health", entity.getHealth());
         json.addProperty("_absorption", entity.getAbsorptionAmount());
         json.addProperty("_removeWhenFarAway", entity.getRemoveWhenFarAway());
-        json.addProperty("_customName", entity.getCustomName());
+        Component customName = entity.customName();
+        json.addProperty("_customName", customName == null ? null : LEGACY_SERIALIZER.serialize(customName));
         json.addProperty("_customNameVisible", entity.isCustomNameVisible());
         json.addProperty("_ai", entity.hasAI());
         json.addProperty("_silent", entity.isSilent());
@@ -232,7 +239,7 @@ public interface MobAdapter<T extends LivingEntity> extends PersistentDataType<S
             obj.addProperty("ambient", effect.isAmbient());
             obj.addProperty("particles", effect.hasParticles());
             obj.addProperty("icon", effect.hasIcon());
-            effects.add(effect.getType().getName(), obj);
+            effects.add(effect.getType().getKey().getKey().toUpperCase(Locale.ROOT), obj);
         }
         json.add("_effects", effects);
 
@@ -243,6 +250,19 @@ public interface MobAdapter<T extends LivingEntity> extends PersistentDataType<S
         json.add("_scoreboardTags", tags);
 
         return json;
+    }
+
+    private static PotionEffectType resolvePotionEffectType(String storedName) {
+        if (storedName == null || storedName.isBlank()) {
+            return null;
+        }
+
+        NamespacedKey key = NamespacedKey.fromString(storedName);
+        if (key == null || !storedName.contains(":")) {
+            key = NamespacedKey.minecraft(storedName.toLowerCase(Locale.ROOT));
+        }
+
+        return RegistryAccess.registryAccess().getRegistry(RegistryKey.MOB_EFFECT).get(key);
     }
 
     private static Attribute resolveAttribute(String storedName) {

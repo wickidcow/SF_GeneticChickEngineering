@@ -8,13 +8,16 @@ import javax.annotation.ParametersAreNonnullByDefault;
 
 import com.google.gson.JsonObject;
 
-import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Chicken;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 import io.github.thebusybiscuit.slimefun4.api.items.ItemGroup;
 import io.github.thebusybiscuit.slimefun4.api.items.SlimefunItemStack;
@@ -34,6 +37,7 @@ import net.guizhanss.gcereborn.utils.Keys;
 
 public class PocketChicken extends SimpleSlimefunItem<ItemUseHandler> implements NotPlaceable, DistinctiveItem {
 
+    private static final LegacyComponentSerializer LEGACY_SERIALIZER = LegacyComponentSerializer.legacySection();
     public static final AnimalsAdapter<Chicken> ADAPTER = new AnimalsAdapter<>(Chicken.class);
 
     public PocketChicken(ItemGroup itemGroup, SlimefunItemStack item, RecipeType recipeType, ItemStack[] recipe) {
@@ -75,11 +79,16 @@ public class PocketChicken extends SimpleSlimefunItem<ItemUseHandler> implements
                 PersistentDataAPI.setString(entity, Keys.CHICKEN_DNA, dna.getStateString());
 
                 if (GeneticChickengineering.getConfigService().isDisplayResources() && dna.isKnown()) {
-                    String name = ChatColor.WHITE + "(" + ChickenTypes.getDisplayName(dna.getTyping()) + ")";
+                    Component resourceName = Component.text(
+                        "(" + ChickenTypes.getDisplayName(dna.getTyping()) + ")",
+                        NamedTextColor.WHITE
+                    );
                     if (!json.get("_customName").isJsonNull()) {
-                        name = json.get("_customName").getAsString() + " " + name;
+                        resourceName = LEGACY_SERIALIZER.deserialize(json.get("_customName").getAsString())
+                            .append(Component.space())
+                            .append(resourceName);
                     }
-                    entity.setCustomName(name);
+                    entity.customName(resourceName);
                     entity.setCustomNameVisible(true);
                 }
 
@@ -97,9 +106,10 @@ public class PocketChicken extends SimpleSlimefunItem<ItemUseHandler> implements
                     "Failed to release a Pocket Chicken. Spawn was rolled back and the item was not consumed.",
                     ex
                 );
-                e.getPlayer().sendMessage(
-                    ChatColor.RED + "Could not release this Pocket Chicken safely. The item was not consumed."
-                );
+                e.getPlayer().sendMessage(Component.text(
+                    "Could not release this Pocket Chicken safely. The item was not consumed.",
+                    NamedTextColor.RED
+                ));
             }
         };
     }
