@@ -2,8 +2,6 @@ package net.guizhanss.gcereborn.utils;
 
 import javax.annotation.Nonnull;
 
-import me.mrCookieSlime.CSCoreLibPlugin.general.Inventory.ChestMenu.MenuClickHandler;
-
 /**
  * Compatibility handlers for the RC-37 chest-menu ABI.
  *
@@ -23,7 +21,7 @@ public final class SlimefunMenuCompat {
      * remains protected.
      */
     @Nonnull
-    public static MenuClickHandler getLegacyOutputSlotHandler() {
+    public static me.mrCookieSlime.CSCoreLibPlugin.general.Inventory.ChestMenu.MenuClickHandler getLegacyOutputSlotHandler() {
         return (player, slot, item, action) -> item != null && !item.getType().isAir();
     }
 }
