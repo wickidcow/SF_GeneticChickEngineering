@@ -2,6 +2,16 @@ name: Build Genetic ChickEngineering
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish a new versioned release after maintainer approval
+        type: boolean
+        required: true
+        default: false
+      version_confirmation:
+        description: Exact version to publish (required only when publish is true)
+        type: string
+        required: false
   push:
     branches:
       - master
@@ -16,11 +26,11 @@ on:
       - 'images/**'
 
 permissions:
-  contents: write
+  contents: read
 
 env:
-  STABLE_VERSION: '1.0.3'
-  STABLE_JAR: 'SF_GeneticChickEngineering1.0.3.jar'
+  STABLE_VERSION: '1.0.4'
+  STABLE_JAR: 'SF_GeneticChickEngineering1.0.4.jar'
 
 jobs:
   compatibility-build:
@@ -32,10 +42,10 @@ jobs:
         target:
           - name: Paper 1.21.11 API floor
             paper: 1.21.11-R0.1-SNAPSHOT
-          - name: Paper 26.2 primary line
+          - name: Paper 26.2 compatibility
             paper: 26.2.build.112-stable
-          - name: Paper 26.3 alpha compatibility
-            paper: 26.3-rc-3.build.1-alpha
+          - name: Paper 26.3 compatibility
+            paper: 26.3.build.211-stable
 
     steps:
       - name: Checkout
@@ -48,99 +58,79 @@ jobs:
           java-version: '25'
           cache: maven
 
-      - name: Build compatibility target
+      - name: Build and test compatibility target
         run: mvn -B -ntp -Dpaper.version='${{ matrix.target.paper }}' clean package
 
+      - name: Test lifecycle artifact verifier controls
+        run: |
+          python3 -m unittest discover -s scripts -p 'test_verify_lifecycle_shim.py'
+          python3 -O -m unittest discover -s scripts -p 'test_verify_lifecycle_shim.py'
+
+      - name: Verify lifecycle class ownership and unchanged public API
+        run: >-
+          python3 scripts/verify_lifecycle_shim.py
+          "target/${STABLE_JAR}"
+          "$HOME/.m2/repository/net/guizhanss/GuizhanLib-api/1.8.1/GuizhanLib-api-1.8.1.jar"
+
+      - name: Retain tests and compiled compatibility evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gce-compatibility-${{ matrix.target.paper }}
+          path: |
+            target/surefire-reports/
+            target/lifecycle-shim-verification.txt
+          if-no-files-found: error
+
+      - name: Retain universal candidate JAR
+        if: matrix.target.paper == '1.21.11-R0.1-SNAPSHOT'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.STABLE_JAR }}
+          path: target/${{ env.STABLE_JAR }}
+          archive: false
+          if-no-files-found: error
+
   publish-stable-jar:
-    name: Publish 1.0.3 release JAR
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    name: Publish approved new release JAR
+    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/master'
     needs: compatibility-build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java 25
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '25'
-          cache: maven
-
-      - name: Build stable JAR from universal baseline
-        run: mvn -B -ntp -Drevision='${{ env.STABLE_VERSION }}' -Dpaper.version='1.21.11-R0.1-SNAPSHOT' clean package
-
-      - name: Verify stable JAR
+      - name: Require explicit version confirmation and a new release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION_CONFIRMATION: ${{ inputs.version_confirmation }}
         shell: bash
         run: |
           set -euo pipefail
-          test -s "target/${STABLE_JAR}"
-          javap -verbose -classpath "target/${STABLE_JAR}" net.guizhanss.gcereborn.GeneticChickengineering | grep -Fq 'major version: 65'
-          sha256sum "target/${STABLE_JAR}"
+          test "$VERSION_CONFIRMATION" = "$STABLE_VERSION"
+          test -z "$(git ls-remote --tags origin "refs/tags/v${STABLE_VERSION}")"
+          if gh release view "v${STABLE_VERSION}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo 'Refusing to replace an existing release.' >&2
+            exit 1
+          fi
 
-      - name: Publish stable release once
+      - name: Download verified universal candidate
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.STABLE_JAR }}
+          path: release
+
+      - name: Publish new versioned release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          TAG="v${STABLE_VERSION}"
-          NOTES="Genetic ChickEngineering 1.0.3 adds optional stacked Pocket Chicken production in Excitation Chambers. Each stacked chicken receives an independent resource/egg roll while processing time and chamber energy usage remain unchanged. Stacked production safely falls back to 1x when the optional pain system is enabled. Paper 1.21.11, 26.2, and 26.3 compatibility validation remains in place."
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "target/${STABLE_JAR}" --clobber
-          else
-            gh release create "$TAG" "target/${STABLE_JAR}" --target "$GITHUB_SHA" --title "SF Genetic ChickEngineering ${STABLE_VERSION}" --notes "$NOTES"
-          fi
-
-  publish-development-jar:
-    name: Publish raw development JAR
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    needs: compatibility-build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Java 25
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '25'
-          cache: maven
-
-      - name: Build development JAR against Paper 26.2 primary
-        run: mvn -B -ntp -Drevision=dev -Dpaper.version='26.2.build.112-stable' clean package
-
-      - name: Prepare raw JAR
-        shell: bash
-        run: |
-          cp target/SF_GeneticChickEngineeringdev.jar SF_GeneticChickEngineering-dev.jar
-          test -f SF_GeneticChickEngineering-dev.jar
-
-      - name: Publish rolling development release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          if gh release view development >/dev/null 2>&1; then
-            gh release upload development SF_GeneticChickEngineering-dev.jar --clobber
-            gh release edit development \
-              --title 'SF Genetic ChickEngineering Development Build' \
-              --notes "Latest successful Paper 26.2-primary development build from master: ${GITHUB_SHA}"
-          else
-            gh release create development \
-              SF_GeneticChickEngineering-dev.jar \
-              --target "$GITHUB_SHA" \
-              --title 'SF Genetic ChickEngineering Development Build' \
-              --notes "Latest successful Paper 26.2-primary development build from master: ${GITHUB_SHA}" \
-              --prerelease
-          fi
-
-      - name: Add raw JAR download link
-        shell: bash
-        run: |
-          echo '## Raw development JAR' >> "$GITHUB_STEP_SUMMARY"
-          echo '' >> "$GITHUB_STEP_SUMMARY"
-          echo '[Download SF_GeneticChickEngineering-dev.jar](https://github.com/wickidcow/SF_GeneticChickEngineering/releases/download/development/SF_GeneticChickEngineering-dev.jar)' >> "$GITHUB_STEP_SUMMARY"
+          test -s "release/${STABLE_JAR}"
+          gh release create "v${STABLE_VERSION}" "release/${STABLE_JAR}" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "SF Genetic ChickEngineering ${STABLE_VERSION}" \
+            --notes-file docs/releases/1.0.4.md
