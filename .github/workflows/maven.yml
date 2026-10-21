@@ -86,7 +86,7 @@ jobs:
         if: matrix.target.paper == '1.21.11-R0.1-SNAPSHOT'
         uses: actions/upload-artifact@v7
         with:
-          name: SF_GeneticChickEngineering-candidate
+          name: ${{ env.STABLE_JAR }}
           path: target/${{ env.STABLE_JAR }}
           archive: false
           if-no-files-found: error
@@ -120,7 +120,7 @@ jobs:
       - name: Download verified universal candidate
         uses: actions/download-artifact@v8
         with:
-          name: SF_GeneticChickEngineering-candidate
+          name: ${{ env.STABLE_JAR }}
           path: release
 
       - name: Publish new versioned release
