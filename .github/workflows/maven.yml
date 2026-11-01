@@ -57,6 +57,8 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
+      - name: Install checksum-verified Apache Maven 3.10.0
+        run: bash scripts/install_maven_3_10.sh
 
       - name: Build and test compatibility target
         run: mvn -B -ntp -Dpaper.version='${{ matrix.target.paper }}' clean package
